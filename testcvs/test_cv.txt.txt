@@ -1,0 +1,4 @@
+Nandun Thellamurege
+Senior Software Engineer
+Skills: Java, Python, SQL, FastAPI, React, AWS, PostgreSQL
+Experience: Backend systems, production support, data workflows, AI projects.
