@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
@@ -15,3 +17,15 @@ class JobRequirementsExtracted(BaseModel):
     hard_requirements: list[str] = Field(default_factory=list)
     nice_to_have: list[str] = Field(default_factory=list)
     keywords_for_ats: list[str] = Field(default_factory=list)
+
+
+class JobRequirementRead(JobRequirementsExtracted):
+    id: str
+    job_listing_id: str
+    extraction_notes: str = ""
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {
+        "from_attributes": True
+    }
