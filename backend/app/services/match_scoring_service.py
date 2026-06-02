@@ -37,6 +37,9 @@ def calculate_match_score(
 
     matched_responsibilities = match_responsibilities(
         candidate_domains=candidate_profile.domains,
+        candidate_skills=candidate_profile.core_skills + candidate_profile.secondary_skills,
+        candidate_target_roles=candidate_profile.target_roles,
+        candidate_experience_summaries=candidate_profile.experience_summary,
         job_responsibilities=job_requirement.responsibilities,
     )
 
@@ -134,17 +137,24 @@ def get_matches(candidate_values: list[str], required_values: list[str]) -> list
     matches: list[str] = []
 
     for required_value in required_values:
-        normalized_required = normalize_text(required_value)
+        required_options = split_grouped_skill_requirement(required_value)
 
-        if any(
-            normalized_required == candidate_value
-            or normalized_required in candidate_value
-            or candidate_value in normalized_required
-            for candidate_value in normalized_candidate_values
-        ):
-            matches.append(required_value)
+        if not required_options:
+            required_options = [required_value]
 
-    return matches
+        for option in required_options:
+            normalized_option = normalize_text(option)
+
+            if any(
+                normalized_option == candidate_value
+                or normalized_option in candidate_value
+                or candidate_value in normalized_option
+                for candidate_value in normalized_candidate_values
+            ):
+                matches.append(required_value)
+                break
+
+    return deduplicate_preserving_order(matches)
 
 
 def get_missing(
@@ -154,14 +164,26 @@ def get_missing(
     missing: list[str] = []
 
     for required_skill in required_skills:
-        normalized_required = normalize_text(required_skill)
+        required_options = split_grouped_skill_requirement(required_skill)
 
-        if not any(
-            normalized_required == candidate_skill
-            or normalized_required in candidate_skill
-            or candidate_skill in normalized_required
-            for candidate_skill in candidate_skills
-        ):
+        if not required_options:
+            required_options = [required_skill]
+
+        matched = False
+
+        for option in required_options:
+            normalized_option = normalize_text(option)
+
+            if any(
+                normalized_option == candidate_skill
+                or normalized_option in candidate_skill
+                or candidate_skill in normalized_option
+                for candidate_skill in candidate_skills
+            ):
+                matched = True
+                break
+
+        if not matched:
             missing.append(required_skill)
 
     return missing
@@ -316,22 +338,72 @@ def calculate_career_strategy_score(
 def match_responsibilities(
     candidate_domains: list[str],
     job_responsibilities: list[str],
+    candidate_skills: list[str] | None = None,
+    candidate_target_roles: list[str] | None = None,
+    candidate_experience_summaries: list[dict] | None = None,
 ) -> list[str]:
-    normalized_candidate_domains = normalize_list(candidate_domains)
+    candidate_skills = candidate_skills or []
+    candidate_target_roles = candidate_target_roles or []
+    candidate_experience_summaries = candidate_experience_summaries or []
+
+    candidate_terms = []
+    candidate_terms.extend(candidate_domains)
+    candidate_terms.extend(candidate_skills)
+    candidate_terms.extend(candidate_target_roles)
+
+    for experience in candidate_experience_summaries:
+        if isinstance(experience, dict):
+            candidate_terms.append(str(experience.get("role", "")))
+            candidate_terms.append(str(experience.get("summary", "")))
+
+    normalized_candidate_terms = normalize_list(candidate_terms)
+
+    responsibility_keywords = {
+        "api": ["api", "rest"],
+        "integration": ["integration", "integrate", "third-party", "enterprise systems"],
+        "testing": ["testing", "unit", "integration test", "end-to-end"],
+        "production support": ["production", "troubleshooting", "root-cause", "support"],
+        "ci/cd": ["ci/cd", "pipeline", "deployment", "automation"],
+        "monitoring": ["monitoring", "observability", "release management"],
+        "architecture": ["architecture", "system design", "technical solutions"],
+        "leadership": ["lead", "mentor", "coaching", "technical leadership"],
+        "legacy systems": ["legacy", "refactoring", "re-engineering"],
+        "scalability": ["scalable", "scalability", "resilience", "maintainability"],
+    }
 
     matches: list[str] = []
 
     for responsibility in job_responsibilities:
         normalized_responsibility = normalize_text(responsibility)
 
-        if any(
-            domain in normalized_responsibility
-            or normalized_responsibility in domain
-            for domain in normalized_candidate_domains
-        ):
+        direct_match = any(
+            term in normalized_responsibility
+            or normalized_responsibility in term
+            for term in normalized_candidate_terms
+        )
+
+        keyword_match = False
+
+        for concept, keywords in responsibility_keywords.items():
+            responsibility_has_concept = any(
+                keyword in normalized_responsibility
+                for keyword in keywords
+            )
+
+            candidate_has_concept = any(
+                concept in term
+                or any(keyword in term for keyword in keywords)
+                for term in normalized_candidate_terms
+            )
+
+            if responsibility_has_concept and candidate_has_concept:
+                keyword_match = True
+                break
+
+        if direct_match or keyword_match:
             matches.append(responsibility)
 
-    return matches
+    return deduplicate_preserving_order(matches)
 
 
 def get_recommendation(
@@ -387,3 +459,62 @@ def build_reasoning_summary(
         f"Matched preferred skills: {', '.join(matched_preferred_skills) or 'none'}. "
         f"Missing required skills: {', '.join(missing_required_skills) or 'none'}."
     )
+
+
+def split_grouped_skill_requirement(requirement: str) -> list[str]:
+    normalized = requirement.replace("/", " / ")
+
+    separators = [",", " or ", " and "]
+
+    for separator in separators:
+        normalized = normalized.replace(separator, "|")
+
+    parts = [
+        part.strip()
+        for part in normalized.split("|")
+        if part.strip()
+    ]
+
+    cleaned_parts = []
+
+    remove_phrases = [
+        "at least one of",
+        "one of",
+        "exceptional proficiency in",
+        "core language ie",
+        "core language",
+        "ie",
+        "e.g.",
+        "such as",
+    ]
+
+    for part in parts:
+        cleaned = part.strip()
+
+        for phrase in remove_phrases:
+            cleaned = cleaned.replace(phrase, "")
+            cleaned = cleaned.replace(phrase.title(), "")
+
+        cleaned = cleaned.strip(" :;-")
+
+        if cleaned:
+            cleaned_parts.append(cleaned)
+
+    return cleaned_parts
+
+
+def deduplicate_preserving_order(values: list[str]) -> list[str]:
+    seen = set()
+    result = []
+
+    for value in values:
+        cleaned = value.strip()
+        normalized = cleaned.lower()
+
+        if not cleaned or normalized in seen:
+            continue
+
+        seen.add(normalized)
+        result.append(cleaned)
+
+    return result

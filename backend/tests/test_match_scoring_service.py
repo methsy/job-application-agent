@@ -88,3 +88,45 @@ def test_calculate_match_score_for_weak_match():
     assert result.total_score < 55
     assert result.recommendation == "Skip"
     assert "Java" in result.missing_required_skills
+
+
+def test_calculate_match_score_matches_grouped_alternative_skill_requirement():
+    candidate_profile = CandidateProfile(
+        cv_profile_id="cv-3",
+        target_roles=["Senior Software Engineer"],
+        core_skills=["Java", "Python"],
+        secondary_skills=["SQL"],
+        seniority="Senior",
+        domains=["software engineering", "backend software engineering"],
+        location_preferences=["Melbourne"],
+    )
+
+    job_requirement = JobRequirement(
+        job_listing_id="job-3",
+        required_skills=[
+            "at least one of NET/C#, Java, Python, JavaScript, or TypeScript",
+            "API design",
+        ],
+        preferred_skills=[],
+        responsibilities=["design and build scalable software applications"],
+        seniority="Senior",
+        domain="software engineering",
+        work_arrangement="Hybrid",
+        location="Melbourne",
+        hard_requirements=[],
+    )
+
+    result = calculate_match_score(
+        candidate_profile=candidate_profile,
+        job_requirement=job_requirement,
+    )
+
+    assert (
+        "at least one of NET/C#, Java, Python, JavaScript, or TypeScript"
+        in result.matched_skills
+    )
+    assert (
+        "at least one of NET/C#, Java, Python, JavaScript, or TypeScript"
+        not in result.missing_required_skills
+    )
+    assert result.technical_skill_score > 0
