@@ -21,6 +21,10 @@ from app.services import candidate_profile_service
 from app.services import job_requirement_service
 
 from app.services.match_scoring_service import calculate_match_score
+from app.agents.cv_profile_extraction_agent import extract_candidate_profile_from_cv
+from app.agents.job_requirement_extraction_agent import extract_job_requirements_from_listing
+from app.services.candidate_profile_service import upsert_candidate_profile
+from app.services.job_requirement_service import upsert_job_requirement
 
 router = APIRouter(
     prefix="/match-scores",
@@ -142,13 +146,30 @@ def create_match_score_from_cv_and_job_endpoint(
         )
 
     if missing_items and match_score_create.auto_extract_missing:
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail={
-                "message": "auto_extract_missing=true is not implemented yet.",
-                "missing": missing_items,
-            },
-        )
+        if candidate_profile is None:
+            extracted_profile = extract_candidate_profile_from_cv(
+                cv_profile.raw_text
+            )
+
+            candidate_profile = upsert_candidate_profile(
+                db=db,
+                cv_profile_id=match_score_create.cv_profile_id,
+                extracted_profile=extracted_profile,
+            )
+
+        if job_requirement is None:
+            extracted_requirements = extract_job_requirements_from_listing(
+                title=job_listing.title,
+                company=job_listing.company,
+                location=job_listing.location,
+                raw_description=job_listing.raw_description,
+            )
+
+            job_requirement = upsert_job_requirement(
+                db=db,
+                job_listing_id=match_score_create.job_listing_id,
+                extracted_requirements=extracted_requirements,
+            )
 
     calculated_score = calculate_match_score(
         candidate_profile=candidate_profile,
