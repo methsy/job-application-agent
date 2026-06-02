@@ -13,6 +13,7 @@ from app.services.cv_text_extraction_service import (
     UnsupportedFileTypeError,
     extract_text_from_upload,
 )
+from app.agents.cv_profile_extraction_agent import extract_candidate_profile_from_cv
 
 router = APIRouter(
     prefix="/cv-profiles",
@@ -70,6 +71,26 @@ def list_cv_profiles_endpoint(
     db: Session = Depends(get_db),
 ):
     return list_cv_profiles(db)
+
+
+@router.post(
+    "/{cv_profile_id}/extract-profile",
+)
+def extract_profile_from_cv_endpoint(
+    cv_profile_id: str,
+    db: Session = Depends(get_db),
+):
+    cv_profile = get_cv_profile_by_id(db, cv_profile_id)
+
+    if cv_profile is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="CV profile not found",
+        )
+
+    extracted_profile = extract_candidate_profile_from_cv(cv_profile.raw_text)
+
+    return extracted_profile
 
 
 @router.get(
