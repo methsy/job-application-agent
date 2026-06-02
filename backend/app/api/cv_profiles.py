@@ -1,8 +1,14 @@
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.agents.cv_profile_extraction_agent import extract_candidate_profile_from_cv
 from app.core.database import get_db
+from app.schemas.candidate_profile import CandidateProfileRead
 from app.schemas.cv_profile import CVProfileCreate, CVProfileRead
+from app.services.candidate_profile_service import (
+    get_candidate_profile_by_cv_profile_id,
+    upsert_candidate_profile,
+)
 from app.services.cv_profile_service import (
     create_cv_profile,
     get_cv_profile_by_id,
@@ -13,7 +19,7 @@ from app.services.cv_text_extraction_service import (
     UnsupportedFileTypeError,
     extract_text_from_upload,
 )
-from app.agents.cv_profile_extraction_agent import extract_candidate_profile_from_cv
+
 
 router = APIRouter(
     prefix="/cv-profiles",
@@ -75,6 +81,7 @@ def list_cv_profiles_endpoint(
 
 @router.post(
     "/{cv_profile_id}/extract-profile",
+    response_model=CandidateProfileRead,
 )
 def extract_profile_from_cv_endpoint(
     cv_profile_id: str,
@@ -90,7 +97,41 @@ def extract_profile_from_cv_endpoint(
 
     extracted_profile = extract_candidate_profile_from_cv(cv_profile.raw_text)
 
-    return extracted_profile
+    return upsert_candidate_profile(
+        db=db,
+        cv_profile_id=cv_profile_id,
+        extracted_profile=extracted_profile,
+    )
+
+
+@router.get(
+    "/{cv_profile_id}/candidate-profile",
+    response_model=CandidateProfileRead,
+)
+def get_candidate_profile_for_cv_endpoint(
+    cv_profile_id: str,
+    db: Session = Depends(get_db),
+):
+    cv_profile = get_cv_profile_by_id(db, cv_profile_id)
+
+    if cv_profile is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="CV profile not found",
+        )
+
+    candidate_profile = get_candidate_profile_by_cv_profile_id(
+        db=db,
+        cv_profile_id=cv_profile_id,
+    )
+
+    if candidate_profile is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Candidate profile not found for this CV",
+        )
+
+    return candidate_profile
 
 
 @router.get(
