@@ -57,6 +57,13 @@ Rules:
 - You may infer location from the supplied location field.
 - Do not leave keywords_for_ats empty if the job listing contains skills, tools, responsibilities, or domain terms.
 - Do not leave responsibilities empty if the job listing contains action-oriented work the candidate is expected to perform.
+- Treat phrases under "You will bring", "About You", "Essential skills", "Required skills", "You must have", or "The successful candidate will have" as required_skills unless they are explicitly marked desirable, preferred, bonus, nice-to-have, or highly regarded.
+- If a requirement says "at least one of A, B, C", keep it as one grouped requirement, for example "at least one of NET/C#, Java, Python, JavaScript, or TypeScript".
+- Do not put "desirable but not essential" items in hard_requirements.
+- Do not put "highly regarded", "preferred", "desirable", or "nice to have" items in hard_requirements.
+- Only extract application_deadline if the job ad explicitly says applications close, closing date, deadline, or apply by. Do not use page dates, print dates, or timestamps as application deadlines.
+- Include all major required skills, preferred skills, responsibilities, tools, technologies, methodologies, and seniority terms in keywords_for_ats.
+- Put only strict eligibility constraints in hard_requirements, such as mandatory citizenship, mandatory clearance, mandatory work rights, mandatory certification, or non-negotiable years of experience. Do not include desirable or preferred items.
 
 Return JSON with exactly this structure:
 {{

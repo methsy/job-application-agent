@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Form, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.agents.job_requirement_extraction_agent import (
@@ -32,6 +32,32 @@ def create_job_listing_endpoint(
     job_listing_create: JobListingCreate,
     db: Session = Depends(get_db),
 ):
+    return create_job_listing(db, job_listing_create)
+
+
+@router.post(
+    "/manual",
+    response_model=JobListingRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_manual_job_listing_endpoint(
+    title: str = Form(...),
+    company: str = Form(...),
+    location: str = Form(""),
+    source: str = Form("manual"),
+    url: str = Form(""),
+    raw_description: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    job_listing_create = JobListingCreate(
+        title=title.strip(),
+        company=company.strip(),
+        location=location.strip(),
+        source=source.strip() or "manual",
+        url=url.strip(),
+        raw_description=raw_description.strip(),
+    )
+
     return create_job_listing(db, job_listing_create)
 
 
