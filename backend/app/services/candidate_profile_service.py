@@ -6,12 +6,12 @@ from app.schemas.candidate_profile import CandidateProfileExtracted
 
 def get_candidate_profile_by_cv_profile_id(
     db: Session,
-    cv_profile_id: str,
+    cv_profile_id: int,
 ) -> CandidateProfile | None:
     return (
         db.query(CandidateProfile)
         .filter(CandidateProfile.cv_profile_id == cv_profile_id)
-        .one_or_none()
+        .first()
     )
 
 

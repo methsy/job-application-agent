@@ -45,3 +45,9 @@ class MatchScoreRead(MatchScoreCalculated):
     model_config = {
         "from_attributes": True
     }
+
+
+class MatchScoreFromCvAndJobCreate(BaseModel):
+    cv_profile_id: str
+    job_listing_id: str
+    auto_extract_missing: bool = True
