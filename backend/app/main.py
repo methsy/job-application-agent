@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from app.api.cv_profiles import router as cv_profiles_router
 from app.api.health import router as health_router
+from app.api.job_listings import router as job_listings_router
 from app.core.config import settings
 
 app = FastAPI(
@@ -18,3 +19,4 @@ def health_check() -> dict[str, str]:
 
 app.include_router(health_router)
 app.include_router(cv_profiles_router)
+app.include_router(job_listings_router)
