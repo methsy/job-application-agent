@@ -1,6 +1,12 @@
+from datetime import datetime, UTC
+from uuid import uuid4
+
+from app.schemas.candidate_profile import CandidateProfileRead
+from app.schemas.job_requirements import JobRequirementRead
 from app.models.candidate_profile import CandidateProfile
 from app.models.job_requirement import JobRequirement
 from app.services.match_scoring_service import calculate_match_score
+from app.services.match_scoring_service import skill_matches
 
 
 def test_calculate_match_score_for_strong_match():
@@ -130,3 +136,73 @@ def test_calculate_match_score_matches_grouped_alternative_skill_requirement():
         not in result.missing_required_skills
     )
     assert result.technical_skill_score > 0
+
+
+def test_software_engineering_requirement_matches_software_engineer_experience():
+    now = datetime.now(UTC)
+
+    candidate_profile = CandidateProfileRead(
+        id=str(uuid4()),
+        cv_profile_id=str(uuid4()),
+        target_roles=[],
+        core_skills=[
+            "Python",
+            "Full Stack Engineering",
+            "AWS",
+        ],
+        secondary_skills=[],
+        seniority="",
+        domains=[],
+        experience_summary=[
+            {
+                "company": "ANCA CNC Machines",
+                "role": "Software Engineer",
+                "summary": "Developed and supported application software for precision CNC systems.",
+            }
+        ],
+        location_preferences=[],
+        work_arrangement_preferences=[],
+        extraction_notes="",
+        created_at=now,
+        updated_at=now,
+    )
+
+    job_requirement = JobRequirementRead(
+        id=str(uuid4()),
+        job_listing_id=str(uuid4()),
+        required_skills=[
+            "python",
+            "software engineering",
+        ],
+        preferred_skills=[],
+        responsibilities=[],
+        seniority="",
+        domain="backend software engineering",
+        employment_type="",
+        work_arrangement="",
+        location="",
+        salary_range="",
+        application_deadline="",
+        hard_requirements=[],
+        nice_to_have=[],
+        keywords_for_ats=[],
+        extraction_notes="",
+        created_at=now,
+        updated_at=now,
+    )
+
+    result = calculate_match_score(candidate_profile, job_requirement)
+
+    assert "python" in result.matched_skills
+    assert "software engineering" in result.matched_skills
+    assert "software engineering" not in result.missing_required_skills
+
+def test_skill_matches_software_engineering_to_full_stack_engineering():
+    candidate_evidence = [
+        "Python",
+        "Full Stack Engineering",
+        "Software Engineer",
+        "Developed and supported application software",
+    ]
+
+    assert skill_matches("software engineering", candidate_evidence) is True

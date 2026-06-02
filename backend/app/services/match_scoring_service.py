@@ -7,24 +7,23 @@ def calculate_match_score(
     candidate_profile: CandidateProfile,
     job_requirement: JobRequirement,
 ) -> MatchScoreCalculated:
-    candidate_skills = normalize_list(
-        candidate_profile.core_skills + candidate_profile.secondary_skills
-    )
+    candidate_skill_evidence = build_candidate_skill_evidence(candidate_profile)
+
     required_skills = normalize_list(job_requirement.required_skills)
     preferred_skills = normalize_list(job_requirement.preferred_skills)
 
     matched_required_skills = get_matches(
-        candidate_profile.core_skills + candidate_profile.secondary_skills,
-        job_requirement.required_skills,
+        candidate_values=candidate_skill_evidence,
+        required_values=job_requirement.required_skills,
     )
 
     matched_preferred_skills = get_matches(
-        candidate_profile.core_skills + candidate_profile.secondary_skills,
-        job_requirement.preferred_skills,
+        candidate_values=candidate_skill_evidence,
+        required_values=job_requirement.preferred_skills,
     )
 
     missing_required_skills = get_missing(
-        candidate_skills=candidate_skills,
+        candidate_evidence=candidate_skill_evidence,
         required_skills=job_requirement.required_skills,
     )
 
@@ -123,67 +122,104 @@ def calculate_match_score(
     )
 
 
-def normalize_text(value: str) -> str:
-    return value.strip().lower().replace("-", " ")
+def normalize_text(value: str | None) -> str:
+    if not value:
+        return ""
+
+    return (
+        value.strip()
+        .lower()
+        .replace("/", " ")
+        .replace("-", " ")
+        .replace("_", " ")
+        .replace(",", " ")
+    )
 
 
 def normalize_list(values: list[str]) -> list[str]:
     return [normalize_text(value) for value in values if value.strip()]
 
 
-def get_matches(candidate_values: list[str], required_values: list[str]) -> list[str]:
-    normalized_candidate_values = normalize_list(candidate_values)
+SKILL_ALIASES: dict[str, list[str]] = {
+    "software engineering": [
+        "software engineer",
+        "software engineering",
+        "software development",
+        "software developer",
+        "application software",
+        "application development",
+        "full stack engineering",
+        "full stack development",
+        "backend engineering",
+        "backend development",
+        "systems development",
+    ],
+    "python": [
+        "python",
+        "pytest",
+        "fastapi",
+        "flask",
+        "django",
+    ],
+    "ci cd": [
+        "ci cd",
+        "ci/cd",
+        "jenkins",
+        "github actions",
+        "gitlab ci",
+        "continuous integration",
+        "continuous delivery",
+        "continuous deployment",
+    ],
+    "testing": [
+        "testing",
+        "test driven development",
+        "tdd",
+        "pytest",
+        "junit",
+        "mockito",
+        "jest",
+        "unit testing",
+        "integration testing",
+    ],
+    "cloud": [
+        "cloud",
+        "aws",
+        "gcp",
+        "azure",
+        "cloud based systems",
+    ],
+    "api": [
+        "api",
+        "apis",
+        "rest",
+        "rest api",
+        "fastapi",
+        "flask",
+        "backend api",
+        "api integration",
+    ],
+}
 
+
+def get_matches(candidate_values: list[str], required_values: list[str]) -> list[str]:
     matches: list[str] = []
 
     for required_value in required_values:
-        required_options = split_grouped_skill_requirement(required_value)
-
-        if not required_options:
-            required_options = [required_value]
-
-        for option in required_options:
-            normalized_option = normalize_text(option)
-
-            if any(
-                normalized_option == candidate_value
-                or normalized_option in candidate_value
-                or candidate_value in normalized_option
-                for candidate_value in normalized_candidate_values
-            ):
-                matches.append(required_value)
-                break
+        if skill_matches(required_value, candidate_values):
+            matches.append(required_value)
 
     return deduplicate_preserving_order(matches)
 
 
 def get_missing(
-    candidate_skills: list[str],
+    candidate_evidence: list[str],
     required_skills: list[str],
 ) -> list[str]:
     missing: list[str] = []
 
     for required_skill in required_skills:
-        required_options = split_grouped_skill_requirement(required_skill)
-
-        if not required_options:
-            required_options = [required_skill]
-
-        matched = False
-
-        for option in required_options:
-            normalized_option = normalize_text(option)
-
-            if any(
-                normalized_option == candidate_skill
-                or normalized_option in candidate_skill
-                or candidate_skill in normalized_option
-                for candidate_skill in candidate_skills
-            ):
-                matched = True
-                break
-
-        if not matched:
+        if not skill_matches(required_skill, candidate_evidence):
             missing.append(required_skill)
 
     return missing
@@ -518,3 +554,77 @@ def deduplicate_preserving_order(values: list[str]) -> list[str]:
         result.append(cleaned)
 
     return result
+
+
+def build_candidate_skill_evidence(candidate_profile: CandidateProfile) -> list[str]:
+    evidence: list[str] = []
+
+    evidence.extend(candidate_profile.core_skills or [])
+    evidence.extend(candidate_profile.secondary_skills or [])
+    evidence.extend(candidate_profile.target_roles or [])
+    evidence.extend(candidate_profile.domains or [])
+
+    for experience in candidate_profile.experience_summary or []:
+        if isinstance(experience, dict):
+            role = experience.get("role")
+            summary = experience.get("summary")
+
+            if role:
+                evidence.append(str(role))
+
+            if summary:
+                evidence.append(str(summary))
+
+    return evidence
+
+
+def skill_matches(required_skill: str, candidate_evidence: list[str]) -> bool:
+    normalized_required_skill = normalize_text(required_skill)
+
+    if not normalized_required_skill:
+        return False
+
+    normalized_candidate_evidence = normalize_list(candidate_evidence)
+
+    for candidate_value in normalized_candidate_evidence:
+        if (
+            normalized_required_skill == candidate_value
+            or normalized_required_skill in candidate_value
+            or candidate_value in normalized_required_skill
+        ):
+            return True
+
+    required_options = split_grouped_skill_requirement(required_skill)
+
+    if not required_options:
+        required_options = [required_skill]
+
+    for option in required_options:
+        normalized_option = normalize_text(option)
+        aliases = SKILL_ALIASES.get(normalized_option, [])
+
+        for alias in aliases:
+            normalized_alias = normalize_text(alias)
+
+            if any(
+                normalized_alias == candidate_value
+                or normalized_alias in candidate_value
+                or candidate_value in normalized_alias
+                for candidate_value in normalized_candidate_evidence
+            ):
+                return True
+
+    aliases = SKILL_ALIASES.get(normalized_required_skill, [])
+
+    for alias in aliases:
+        normalized_alias = normalize_text(alias)
+
+        if any(
+            normalized_alias == candidate_value
+            or normalized_alias in candidate_value
+            or candidate_value in normalized_alias
+            for candidate_value in normalized_candidate_evidence
+        ):
+            return True
+
+    return False
