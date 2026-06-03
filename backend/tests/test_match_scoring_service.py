@@ -6,8 +6,10 @@ from app.schemas.job_requirements import JobRequirementRead
 from app.models.candidate_profile import CandidateProfile
 from app.models.job_requirement import JobRequirement
 from app.services.match_scoring_service import (
-    calculate_match_score, skill_matches,
-    match_responsibilities
+    calculate_match_score,
+    skill_matches,
+    match_responsibilities,
+    calculate_domain_score,
 )
 
 
@@ -323,3 +325,56 @@ def test_match_responsibilities_matches_current_ai_python_job_responsibilities()
     assert "moving from prototype to production" in matched
     assert "working with data integrations" in matched
     assert "integrating APIs and cloud-based systems" in matched
+
+
+def test_calculate_domain_score_matches_backend_software_engineering_evidence():
+    score = calculate_domain_score(
+        candidate_domain_evidence=[
+            "Full Stack Engineering",
+            "Software Engineer",
+            "Python",
+            "Application software development",
+        ],
+        job_domain="backend software engineering",
+    )
+
+    assert score >= 8
+
+
+def test_calculate_domain_score_matches_data_engineering_evidence():
+    score = calculate_domain_score(
+        candidate_domain_evidence=[
+            "Data Pipelines & Data-Intensive Systems",
+            "SQL (PostgreSQL)",
+            "HPC environments",
+        ],
+        job_domain="data engineering",
+    )
+
+    assert score >= 8
+
+
+def test_calculate_domain_score_matches_ai_ml_software_evidence():
+    score = calculate_domain_score(
+        candidate_domain_evidence=[
+            "Machine Learning",
+            "AI & Developer Tooling",
+            "LLM task extraction",
+            "prompt engineering",
+        ],
+        job_domain="AI software engineering",
+    )
+
+    assert score >= 8
+
+
+def test_calculate_domain_score_returns_low_score_for_unrelated_domain():
+    score = calculate_domain_score(
+        candidate_domain_evidence=[
+            "Python",
+            "PostgreSQL",
+        ],
+        job_domain="enterprise sales strategy",
+    )
+
+    assert score == 4

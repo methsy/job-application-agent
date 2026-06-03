@@ -237,6 +237,250 @@ RESPONSIBILITY_CONCEPTS: dict[str, dict[str, list[str]]] = {
     },
 }
 
+
+DOMAIN_CONCEPTS: dict[str, dict[str, list[str]]] = {
+    "backend_software_engineering": {
+        "job_keywords": [
+            "backend",
+            "back end",
+            "software engineering",
+            "software development",
+            "application software",
+            "api",
+            "apis",
+            "server side",
+            "server-side",
+        ],
+        "candidate_keywords": [
+            "backend",
+            "back end",
+            "software engineer",
+            "software engineering",
+            "software development",
+            "application software",
+            "full stack",
+            "full stack engineering",
+            "python",
+            "java",
+            "api",
+            "apis",
+            "fastapi",
+            "flask",
+            "spring",
+            "service",
+            "services",
+        ],
+    },
+    "full_stack_engineering": {
+        "job_keywords": [
+            "full stack",
+            "full-stack",
+            "frontend and backend",
+            "front end and back end",
+            "web application",
+            "web applications",
+        ],
+        "candidate_keywords": [
+            "full stack",
+            "full stack engineering",
+            "full stack development",
+            "react",
+            "javascript",
+            "typescript",
+            "backend",
+            "api",
+            "apis",
+            "web technologies",
+        ],
+    },
+    "data_engineering": {
+        "job_keywords": [
+            "data engineering",
+            "data integration",
+            "data integrations",
+            "data platform",
+            "data platforms",
+            "data pipeline",
+            "data pipelines",
+            "data intensive",
+            "data-intensive",
+            "etl",
+            "database",
+            "databases",
+        ],
+        "candidate_keywords": [
+            "data engineering",
+            "data pipeline",
+            "data pipelines",
+            "data intensive",
+            "data-intensive",
+            "sql",
+            "postgresql",
+            "database",
+            "databases",
+            "hpc",
+            "etl",
+            "data platform",
+            "data platforms",
+        ],
+    },
+    "cloud_engineering": {
+        "job_keywords": [
+            "cloud",
+            "cloud engineering",
+            "cloud based",
+            "cloud-based",
+            "aws",
+            "gcp",
+            "azure",
+            "cloud platform",
+            "cloud platforms",
+        ],
+        "candidate_keywords": [
+            "cloud",
+            "aws",
+            "gcp",
+            "azure",
+            "deployment",
+            "deployments",
+            "ci cd",
+            "ci/cd",
+            "jenkins",
+        ],
+    },
+    "ai_ml_software": {
+        "job_keywords": [
+            "ai",
+            "ml",
+            "artificial intelligence",
+            "machine learning",
+            "ai backed",
+            "ai-backed",
+            "llm",
+            "model",
+            "models",
+        ],
+        "candidate_keywords": [
+            "ai",
+            "ml",
+            "machine learning",
+            "artificial intelligence",
+            "llm",
+            "prompt engineering",
+            "developer tooling",
+            "ollama",
+            "model",
+            "models",
+        ],
+    },
+    "scientific_technical_software": {
+        "job_keywords": [
+            "scientific software",
+            "technical software",
+            "simulation",
+            "modelling",
+            "modeling",
+            "research software",
+            "engineering software",
+        ],
+        "candidate_keywords": [
+            "scientific software",
+            "technical software",
+            "simulation",
+            "modelling",
+            "modeling",
+            "molecular dynamics",
+            "quantum",
+            "qm/mm",
+            "hpc",
+            "research",
+        ],
+    },
+    "industrial_embedded_systems": {
+        "job_keywords": [
+            "industrial",
+            "embedded",
+            "machine",
+            "manufacturing",
+            "cnc",
+            "systems software",
+            "control systems",
+        ],
+        "candidate_keywords": [
+            "industrial",
+            "cnc",
+            "machine",
+            "manufacturing",
+            "precision cnc",
+            "systems",
+            "application software",
+            "production systems",
+        ],
+    },
+}
+
+SKILL_ALIASES: dict[str, list[str]] = {
+    "software engineering": [
+        "software engineer",
+        "software engineering",
+        "software development",
+        "software developer",
+        "application software",
+        "application development",
+        "full stack engineering",
+        "full stack development",
+        "backend engineering",
+        "backend development",
+        "systems development",
+    ],
+    "python": [
+        "python",
+        "pytest",
+        "fastapi",
+        "flask",
+        "django",
+    ],
+    "ci cd": [
+        "ci cd",
+        "ci/cd",
+        "jenkins",
+        "github actions",
+        "gitlab ci",
+        "continuous integration",
+        "continuous delivery",
+        "continuous deployment",
+    ],
+    "testing": [
+        "testing",
+        "test driven development",
+        "tdd",
+        "pytest",
+        "junit",
+        "mockito",
+        "jest",
+        "unit testing",
+        "integration testing",
+    ],
+    "cloud": [
+        "cloud",
+        "aws",
+        "gcp",
+        "azure",
+        "cloud based systems",
+    ],
+    "api": [
+        "api",
+        "apis",
+        "rest",
+        "rest api",
+        "fastapi",
+        "flask",
+        "backend api",
+        "api integration",
+    ],
+}
+
+
 def calculate_match_score(
     candidate_profile: CandidateProfile,
     job_requirement: JobRequirement,
@@ -286,8 +530,10 @@ def calculate_match_score(
         job_seniority=job_requirement.seniority,
     )
 
+    candidate_domain_evidence = build_candidate_domain_evidence(candidate_profile)
+
     domain_score = calculate_domain_score(
-        candidate_domains=candidate_profile.domains,
+        candidate_domain_evidence=candidate_domain_evidence,
         job_domain=job_requirement.domain,
     )
 
@@ -372,68 +618,6 @@ def normalize_text(value: str | None) -> str:
 
 def normalize_list(values: list[str]) -> list[str]:
     return [normalize_text(value) for value in values if value.strip()]
-
-
-SKILL_ALIASES: dict[str, list[str]] = {
-    "software engineering": [
-        "software engineer",
-        "software engineering",
-        "software development",
-        "software developer",
-        "application software",
-        "application development",
-        "full stack engineering",
-        "full stack development",
-        "backend engineering",
-        "backend development",
-        "systems development",
-    ],
-    "python": [
-        "python",
-        "pytest",
-        "fastapi",
-        "flask",
-        "django",
-    ],
-    "ci cd": [
-        "ci cd",
-        "ci/cd",
-        "jenkins",
-        "github actions",
-        "gitlab ci",
-        "continuous integration",
-        "continuous delivery",
-        "continuous deployment",
-    ],
-    "testing": [
-        "testing",
-        "test driven development",
-        "tdd",
-        "pytest",
-        "junit",
-        "mockito",
-        "jest",
-        "unit testing",
-        "integration testing",
-    ],
-    "cloud": [
-        "cloud",
-        "aws",
-        "gcp",
-        "azure",
-        "cloud based systems",
-    ],
-    "api": [
-        "api",
-        "apis",
-        "rest",
-        "rest api",
-        "fastapi",
-        "flask",
-        "backend api",
-        "api integration",
-    ],
-}
 
 
 def contains_any_keyword(text: str, keywords: list[str]) -> bool:
@@ -541,7 +725,7 @@ def calculate_seniority_score(
 
 
 def calculate_domain_score(
-    candidate_domains: list[str],
+    candidate_domain_evidence: list[str],
     job_domain: str,
 ) -> int:
     max_score = 10
@@ -550,16 +734,45 @@ def calculate_domain_score(
         return 6
 
     normalized_job_domain = normalize_text(job_domain)
+    normalized_candidate_evidence = normalize_list(candidate_domain_evidence)
 
-    for domain in candidate_domains:
-        normalized_candidate_domain = normalize_text(domain)
+    if not normalized_candidate_evidence:
+        return 4
 
+    # 1. Direct domain match
+    for evidence in normalized_candidate_evidence:
         if (
-            normalized_job_domain == normalized_candidate_domain
-            or normalized_job_domain in normalized_candidate_domain
-            or normalized_candidate_domain in normalized_job_domain
+            normalized_job_domain == evidence
+            or normalized_job_domain in evidence
+            or evidence in normalized_job_domain
         ):
             return max_score
+
+    # 2. Concept-level adjacent domain match
+    for concept in DOMAIN_CONCEPTS.values():
+        job_has_concept = contains_any_keyword(
+            normalized_job_domain,
+            concept["job_keywords"],
+        )
+
+        candidate_has_matching_concept = candidate_has_concept(
+            normalized_candidate_terms=normalized_candidate_evidence,
+            candidate_keywords=concept["candidate_keywords"],
+        )
+
+        if job_has_concept and candidate_has_matching_concept:
+            return 8
+
+    # 3. Weak token overlap fallback
+    job_tokens = tokenize(normalized_job_domain)
+
+    if len(job_tokens) >= 2:
+        for evidence in normalized_candidate_evidence:
+            evidence_tokens = tokenize(evidence)
+            overlap = job_tokens.intersection(evidence_tokens)
+
+            if len(overlap) >= 2:
+                return 7
 
     return 4
 
@@ -867,3 +1080,34 @@ def skill_matches(required_skill: str, candidate_evidence: list[str]) -> bool:
             return True
 
     return False
+
+
+def build_candidate_domain_evidence(candidate_profile: CandidateProfile) -> list[str]:
+    evidence: list[str] = []
+
+    evidence.extend(candidate_profile.domains or [])
+    evidence.extend(candidate_profile.core_skills or [])
+    evidence.extend(candidate_profile.secondary_skills or [])
+    evidence.extend(candidate_profile.target_roles or [])
+
+    for experience in candidate_profile.experience_summary or []:
+        if isinstance(experience, dict):
+            company = experience.get("company")
+            role = experience.get("role")
+            summary = experience.get("summary")
+
+            if company:
+                evidence.append(str(company))
+
+            if role:
+                evidence.append(str(role))
+
+            if summary:
+                evidence.append(str(summary))
+
+    return evidence
+
+
+def tokenize(value: str | None) -> set[str]:
+    normalized = normalize_text(value)
+    return {token for token in normalized.split() if token}
