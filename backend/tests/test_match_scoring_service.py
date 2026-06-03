@@ -5,8 +5,11 @@ from app.schemas.candidate_profile import CandidateProfileRead
 from app.schemas.job_requirements import JobRequirementRead
 from app.models.candidate_profile import CandidateProfile
 from app.models.job_requirement import JobRequirement
-from app.services.match_scoring_service import calculate_match_score
-from app.services.match_scoring_service import skill_matches
+from app.services.match_scoring_service import (
+    calculate_match_score, skill_matches,
+    match_responsibilities
+)
+
 
 
 def test_calculate_match_score_for_strong_match():
@@ -197,6 +200,7 @@ def test_software_engineering_requirement_matches_software_engineer_experience()
     assert "software engineering" in result.matched_skills
     assert "software engineering" not in result.missing_required_skills
 
+
 def test_skill_matches_software_engineering_to_full_stack_engineering():
     candidate_evidence = [
         "Python",
@@ -206,3 +210,116 @@ def test_skill_matches_software_engineering_to_full_stack_engineering():
     ]
 
     assert skill_matches("software engineering", candidate_evidence) is True
+
+
+def test_match_responsibilities_matches_data_engineering_concept():
+    matched = match_responsibilities(
+        candidate_domains=[],
+        candidate_skills=[
+            "Data Pipelines & Data-Intensive Systems",
+            "SQL (PostgreSQL)",
+        ],
+        candidate_target_roles=[],
+        candidate_experience_summaries=[],
+        job_responsibilities=[
+            "working with data integrations",
+        ],
+    )
+
+    assert "working with data integrations" in matched
+
+
+def test_match_responsibilities_matches_api_and_cloud_concepts():
+    matched = match_responsibilities(
+        candidate_domains=[],
+        candidate_skills=[
+            "Python",
+            "Full Stack Engineering",
+            "AWS",
+            "GCP",
+        ],
+        candidate_target_roles=[],
+        candidate_experience_summaries=[],
+        job_responsibilities=[
+            "integrating APIs and cloud-based systems",
+        ],
+    )
+
+    assert "integrating APIs and cloud-based systems" in matched
+
+
+def test_match_responsibilities_matches_ai_ml_concept():
+    matched = match_responsibilities(
+        candidate_domains=[],
+        candidate_skills=[
+            "Machine Learning",
+            "AI & Developer Tooling",
+            "LLM task extraction",
+            "prompt engineering",
+        ],
+        candidate_target_roles=[],
+        candidate_experience_summaries=[],
+        job_responsibilities=[
+            "designing and delivering AI-backed software solutions",
+        ],
+    )
+
+    assert "designing and delivering AI-backed software solutions" in matched
+
+
+def test_match_responsibilities_does_not_match_unrelated_responsibility():
+    matched = match_responsibilities(
+        candidate_domains=[],
+        candidate_skills=[
+            "Python",
+            "PostgreSQL",
+        ],
+        candidate_target_roles=[],
+        candidate_experience_summaries=[],
+        job_responsibilities=[
+            "leading enterprise sales strategy",
+        ],
+    )
+
+    assert matched == []
+
+
+def test_match_responsibilities_matches_current_ai_python_job_responsibilities():
+    matched = match_responsibilities(
+        candidate_domains=[],
+        candidate_skills=[
+            "Python",
+            "Full Stack Engineering",
+            "Data Pipelines & Data-Intensive Systems",
+            "SQL (PostgreSQL)",
+            "AWS",
+            "GCP",
+            "Machine Learning",
+            "CI/CD pipelines",
+            "Jenkins",
+            "Test Driven Development",
+            "AI & Developer Tooling",
+            "LLM task extraction",
+            "prompt engineering",
+        ],
+        candidate_target_roles=[],
+        candidate_experience_summaries=[
+            {
+                "company": "ANCA CNC Machines",
+                "role": "Software Engineer",
+                "summary": "Developed and supported high-performance application software for production CNC systems.",
+            }
+        ],
+        job_responsibilities=[
+            "designing and delivering AI-backed software solutions",
+            "collaborating across teams to solve meaningful problems",
+            "moving from prototype to production",
+            "working with data integrations",
+            "integrating APIs and cloud-based systems",
+        ],
+    )
+
+    assert "designing and delivering AI-backed software solutions" in matched
+    assert "moving from prototype to production" in matched
+    assert "working with data integrations" in matched
+    assert "integrating APIs and cloud-based systems" in matched

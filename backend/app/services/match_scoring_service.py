@@ -2,6 +2,240 @@ from app.models.candidate_profile import CandidateProfile
 from app.models.job_requirement import JobRequirement
 from app.schemas.match_score import MatchScoreCalculated
 
+RESPONSIBILITY_CONCEPTS: dict[str, dict[str, list[str]]] = {
+    "api_integration": {
+        "job_keywords": [
+            "api",
+            "apis",
+            "rest",
+            "integration",
+            "integrating",
+            "third party",
+            "third-party",
+            "external service",
+            "external services",
+            "platform integration",
+            "system integration",
+            "systems integration",
+        ],
+        "candidate_keywords": [
+            "api",
+            "apis",
+            "rest",
+            "fastapi",
+            "flask",
+            "backend",
+            "full stack",
+            "integration",
+            "integrations",
+            "service",
+            "services",
+        ],
+    },
+    "cloud_systems": {
+        "job_keywords": [
+            "cloud",
+            "cloud based",
+            "cloud-based",
+            "aws",
+            "gcp",
+            "azure",
+            "cloud platform",
+            "cloud platforms",
+        ],
+        "candidate_keywords": [
+            "cloud",
+            "aws",
+            "gcp",
+            "azure",
+            "cloud based",
+            "cloud-based",
+            "deployment",
+            "deployments",
+        ],
+    },
+    "data_engineering": {
+        "job_keywords": [
+            "data",
+            "data integration",
+            "data integrations",
+            "data pipeline",
+            "data pipelines",
+            "data platform",
+            "data platforms",
+            "database",
+            "databases",
+            "working with data",
+        ],
+        "candidate_keywords": [
+            "data",
+            "data pipeline",
+            "data pipelines",
+            "data intensive",
+            "data-intensive",
+            "sql",
+            "postgresql",
+            "database",
+            "databases",
+            "hpc",
+            "etl",
+        ],
+    },
+    "ai_ml_solutions": {
+        "job_keywords": [
+            "ai",
+            "ml",
+            "artificial intelligence",
+            "machine learning",
+            "ai backed",
+            "ai-backed",
+            "llm",
+            "model",
+            "models",
+            "intelligent",
+        ],
+        "candidate_keywords": [
+            "ai",
+            "ml",
+            "machine learning",
+            "llm",
+            "prompt engineering",
+            "developer tooling",
+            "ollama",
+            "model",
+            "models",
+            "artificial intelligence",
+        ],
+    },
+    "production_delivery": {
+        "job_keywords": [
+            "production",
+            "prototype to production",
+            "deliver",
+            "delivering",
+            "delivery",
+            "deploy",
+            "deployment",
+            "shipping",
+            "release",
+        ],
+        "candidate_keywords": [
+            "production",
+            "supported",
+            "support",
+            "maintained",
+            "release",
+            "deployment",
+            "deploy",
+            "ci cd",
+            "ci/cd",
+            "jenkins",
+            "testing",
+        ],
+    },
+    "testing_quality": {
+        "job_keywords": [
+            "test",
+            "testing",
+            "quality",
+            "validation",
+            "verification",
+            "reliable",
+            "reliability",
+            "correctness",
+        ],
+        "candidate_keywords": [
+            "test",
+            "testing",
+            "test driven development",
+            "tdd",
+            "pytest",
+            "junit",
+            "mockito",
+            "jest",
+            "validation",
+            "verification",
+            "reliability",
+        ],
+    },
+    "architecture_design": {
+        "job_keywords": [
+            "architecture",
+            "architectural",
+            "system design",
+            "technical design",
+            "design",
+            "designing",
+            "solution design",
+            "scalable",
+            "scalability",
+        ],
+        "candidate_keywords": [
+            "architecture",
+            "system design",
+            "technical design",
+            "designed",
+            "developed",
+            "scalable",
+            "maintainable",
+            "backend",
+            "full stack",
+            "data intensive",
+            "data-intensive",
+        ],
+    },
+    "support_troubleshooting": {
+        "job_keywords": [
+            "support",
+            "troubleshooting",
+            "debugging",
+            "defect",
+            "incident",
+            "root cause",
+            "root-cause",
+            "production support",
+        ],
+        "candidate_keywords": [
+            "support",
+            "supported",
+            "troubleshooting",
+            "debugging",
+            "defect",
+            "incident",
+            "root cause",
+            "root-cause",
+            "investigated",
+            "maintained",
+        ],
+    },
+    "collaboration": {
+        "job_keywords": [
+            "collaborate",
+            "collaborating",
+            "collaboration",
+            "cross functional",
+            "cross-functional",
+            "across teams",
+            "stakeholder",
+            "stakeholders",
+            "team",
+            "teams",
+        ],
+        "candidate_keywords": [
+            "collaborated",
+            "collaborate",
+            "stakeholder",
+            "stakeholders",
+            "team",
+            "teams",
+            "testers",
+            "application engineers",
+            "product",
+            "cross functional",
+            "cross-functional",
+        ],
+    },
+}
 
 def calculate_match_score(
     candidate_profile: CandidateProfile,
@@ -202,6 +436,25 @@ SKILL_ALIASES: dict[str, list[str]] = {
 }
 
 
+def contains_any_keyword(text: str, keywords: list[str]) -> bool:
+    normalized_text = normalize_text(text)
+
+    return any(
+        normalize_text(keyword) in normalized_text
+        for keyword in keywords
+    )
+
+
+def candidate_has_concept(
+    normalized_candidate_terms: list[str],
+    candidate_keywords: list[str],
+) -> bool:
+    return any(
+        contains_any_keyword(candidate_term, candidate_keywords)
+        for candidate_term in normalized_candidate_terms
+    )
+
+
 def get_matches(candidate_values: list[str], required_values: list[str]) -> list[str]:
     matches: list[str] = []
 
@@ -394,19 +647,6 @@ def match_responsibilities(
 
     normalized_candidate_terms = normalize_list(candidate_terms)
 
-    responsibility_keywords = {
-        "api": ["api", "rest"],
-        "integration": ["integration", "integrate", "third-party", "enterprise systems"],
-        "testing": ["testing", "unit", "integration test", "end-to-end"],
-        "production support": ["production", "troubleshooting", "root-cause", "support"],
-        "ci/cd": ["ci/cd", "pipeline", "deployment", "automation"],
-        "monitoring": ["monitoring", "observability", "release management"],
-        "architecture": ["architecture", "system design", "technical solutions"],
-        "leadership": ["lead", "mentor", "coaching", "technical leadership"],
-        "legacy systems": ["legacy", "refactoring", "re-engineering"],
-        "scalability": ["scalable", "scalability", "resilience", "maintainability"],
-    }
-
     matches: list[str] = []
 
     for responsibility in job_responsibilities:
@@ -418,25 +658,24 @@ def match_responsibilities(
             for term in normalized_candidate_terms
         )
 
-        keyword_match = False
+        concept_match = False
 
-        for concept, keywords in responsibility_keywords.items():
-            responsibility_has_concept = any(
-                keyword in normalized_responsibility
-                for keyword in keywords
+        for concept in RESPONSIBILITY_CONCEPTS.values():
+            responsibility_has_concept = contains_any_keyword(
+                normalized_responsibility,
+                concept["job_keywords"],
             )
 
-            candidate_has_concept = any(
-                concept in term
-                or any(keyword in term for keyword in keywords)
-                for term in normalized_candidate_terms
+            candidate_has_matching_concept = candidate_has_concept(
+                normalized_candidate_terms=normalized_candidate_terms,
+                candidate_keywords=concept["candidate_keywords"],
             )
 
-            if responsibility_has_concept and candidate_has_concept:
-                keyword_match = True
+            if responsibility_has_concept and candidate_has_matching_concept:
+                concept_match = True
                 break
 
-        if direct_match or keyword_match:
+        if direct_match or concept_match:
             matches.append(responsibility)
 
     return deduplicate_preserving_order(matches)
