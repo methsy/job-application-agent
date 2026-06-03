@@ -27,6 +27,9 @@ from app.services.candidate_profile_service import upsert_candidate_profile
 from app.services.job_requirement_service import upsert_job_requirement
 from app.schemas.application_advice import ApplicationAdviceRead
 from app.services.application_advice_service import get_application_advice_by_match_score_id
+from app.schemas.tailored_cv_draft import TailoredCvDraftResponse
+from app.services.application_advice_service import generate_application_advice
+from app.services.tailored_cv_draft_service import generate_tailored_cv_draft
 
 router = APIRouter(
     prefix="/match-scores",
@@ -203,6 +206,46 @@ def get_application_advice(
         )
 
     return advice
+
+
+@router.get(
+    "/{match_score_id}/tailored-cv-draft",
+    response_model=TailoredCvDraftResponse,
+)
+def get_tailored_cv_draft(match_score_id: str, db: Session = Depends(get_db)):
+    match_score = get_match_score_by_id(db=db, match_score_id=match_score_id)
+
+    if match_score is None:
+        raise HTTPException(status_code=404, detail="Match score not found")
+
+    candidate_profile = db.get(
+        CandidateProfile,
+        match_score.candidate_profile_id,
+    )
+
+    if candidate_profile is None:
+        raise HTTPException(status_code=404, detail="Candidate profile not found")
+
+    job_requirement = db.get(
+        JobRequirement,
+        match_score.job_requirement_id,
+    )
+
+    if job_requirement is None:
+        raise HTTPException(status_code=404, detail="Job requirement not found")
+
+    application_advice = generate_application_advice(
+        match_score=match_score,
+        candidate_profile=candidate_profile,
+        job_requirement=job_requirement,
+    )
+
+    return generate_tailored_cv_draft(
+        match_score=match_score,
+        candidate_profile=candidate_profile,
+        job_requirement=job_requirement,
+        application_advice=application_advice,
+    )
 
 
 @router.get(
