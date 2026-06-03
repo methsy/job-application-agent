@@ -25,6 +25,8 @@ from app.agents.cv_profile_extraction_agent import extract_candidate_profile_fro
 from app.agents.job_requirement_extraction_agent import extract_job_requirements_from_listing
 from app.services.candidate_profile_service import upsert_candidate_profile
 from app.services.job_requirement_service import upsert_job_requirement
+from app.schemas.application_advice import ApplicationAdviceRead
+from app.services.application_advice_service import get_application_advice_by_match_score_id
 
 router = APIRouter(
     prefix="/match-scores",
@@ -182,6 +184,25 @@ def create_match_score_from_cv_and_job_endpoint(
         job_requirement=job_requirement,
         calculated_score=calculated_score,
     )
+
+
+@router.get("/{match_score_id}/application-advice", response_model=ApplicationAdviceRead)
+def get_application_advice(
+    match_score_id: str,
+    db: Session = Depends(get_db),
+):
+    advice = get_application_advice_by_match_score_id(
+        db=db,
+        match_score_id=match_score_id,
+    )
+
+    if advice is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Match score or linked records not found",
+        )
+
+    return advice
 
 
 @router.get(
