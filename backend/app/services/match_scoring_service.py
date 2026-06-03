@@ -2,6 +2,157 @@ from app.models.candidate_profile import CandidateProfile
 from app.models.job_requirement import JobRequirement
 from app.schemas.match_score import MatchScoreCalculated
 
+HARD_REQUIREMENT_SATISFIED = "satisfied"
+HARD_REQUIREMENT_NEEDS_REVIEW = "needs_review"
+HARD_REQUIREMENT_BLOCKING_GAP = "blocking_gap"
+
+HARD_REQUIREMENT_CONCEPTS: dict[str, dict[str, list[str]]] = {
+    "software_engineering_experience": {
+        "requirement_keywords": [
+            "software engineering",
+            "software engineer",
+            "software development",
+            "hands-on experience in software",
+            "years hands-on experience",
+            "years of software engineering",
+            "application software",
+        ],
+        "candidate_keywords": [
+            "software engineer",
+            "software engineering",
+            "software development",
+            "application software",
+            "full stack engineering",
+            "full stack development",
+            "backend",
+            "python",
+            "java",
+            "developed",
+            "supported",
+            "maintained",
+        ],
+    },
+    "python_experience": {
+        "requirement_keywords": [
+            "python",
+            "python development",
+            "python developer",
+        ],
+        "candidate_keywords": [
+            "python",
+            "pytest",
+            "fastapi",
+            "flask",
+            "django",
+        ],
+    },
+    "cloud_experience": {
+        "requirement_keywords": [
+            "cloud",
+            "aws",
+            "gcp",
+            "azure",
+            "cloud experience",
+            "cloud-based",
+            "cloud based",
+        ],
+        "candidate_keywords": [
+            "cloud",
+            "aws",
+            "gcp",
+            "azure",
+            "deployment",
+            "ci cd",
+            "ci/cd",
+            "jenkins",
+        ],
+    },
+    "production_support_experience": {
+        "requirement_keywords": [
+            "production support",
+            "support production",
+            "production systems",
+            "troubleshooting",
+            "incident",
+            "root cause",
+            "root-cause",
+        ],
+        "candidate_keywords": [
+            "production",
+            "support",
+            "supported",
+            "troubleshooting",
+            "debugging",
+            "defect",
+            "incident",
+            "root cause",
+            "root-cause",
+            "maintained",
+        ],
+    },
+    "testing_experience": {
+        "requirement_keywords": [
+            "testing",
+            "test automation",
+            "unit testing",
+            "integration testing",
+            "tdd",
+        ],
+        "candidate_keywords": [
+            "testing",
+            "test driven development",
+            "tdd",
+            "pytest",
+            "junit",
+            "mockito",
+            "jest",
+            "unit testing",
+            "integration testing",
+        ],
+    },
+    "data_experience": {
+        "requirement_keywords": [
+            "data",
+            "data integration",
+            "data pipeline",
+            "data platform",
+            "database",
+            "sql",
+        ],
+        "candidate_keywords": [
+            "data",
+            "data pipeline",
+            "data pipelines",
+            "data intensive",
+            "data-intensive",
+            "sql",
+            "postgresql",
+            "database",
+            "hpc",
+        ],
+    },
+}
+
+
+BLOCKING_REQUIREMENT_KEYWORDS = [
+    "citizen",
+    "citizenship",
+    "permanent resident",
+    "permanent residency",
+    "pr",
+    "work rights",
+    "unrestricted work rights",
+    "security clearance",
+    "nv1",
+    "nv2",
+    "baseline clearance",
+    "driver licence",
+    "driver's licence",
+    "police check",
+    "working with children",
+]
+
+
 RESPONSIBILITY_CONCEPTS: dict[str, dict[str, list[str]]] = {
     "api_integration": {
         "job_keywords": [
@@ -543,8 +694,17 @@ def calculate_match_score(
         work_arrangement=job_requirement.work_arrangement,
     )
 
-    constraints_score = calculate_constraints_score(
+    candidate_hard_requirement_evidence = build_candidate_hard_requirement_evidence(
+        candidate_profile
+    )
+
+    hard_requirement_results = interpret_hard_requirements(
         hard_requirements=job_requirement.hard_requirements,
+        candidate_evidence=candidate_hard_requirement_evidence,
+    )
+
+    constraints_score = calculate_constraints_score(
+        hard_requirement_results=hard_requirement_results,
     )
 
     career_strategy_score = calculate_career_strategy_score(
@@ -565,12 +725,12 @@ def calculate_match_score(
     recommendation = get_recommendation(
         total_score=total_score,
         missing_required_skills=missing_required_skills,
-        hard_requirements=job_requirement.hard_requirements,
+        hard_requirement_results=hard_requirement_results,
     )
 
     gaps = build_gaps(
         missing_required_skills=missing_required_skills,
-        hard_requirements=job_requirement.hard_requirements,
+        hard_requirement_results=hard_requirement_results,
         job_seniority=job_requirement.seniority,
         candidate_seniority=candidate_profile.seniority,
     )
@@ -807,12 +967,20 @@ def calculate_location_score(
 
 
 def calculate_constraints_score(
-    hard_requirements: list[str],
+    hard_requirement_results: dict[str, str],
 ) -> int:
     max_score = 5
 
-    if not hard_requirements:
+    if not hard_requirement_results:
         return max_score
+
+    statuses = list(hard_requirement_results.values())
+
+    if all(status == HARD_REQUIREMENT_SATISFIED for status in statuses):
+        return max_score
+
+    if any(status == HARD_REQUIREMENT_BLOCKING_GAP for status in statuses):
+        return 0
 
     return 2
 
@@ -897,9 +1065,21 @@ def match_responsibilities(
 def get_recommendation(
     total_score: int,
     missing_required_skills: list[str],
-    hard_requirements: list[str],
+    hard_requirement_results: dict[str, str],
 ) -> str:
-    if hard_requirements:
+    unresolved_hard_requirements = [
+        requirement
+        for requirement, status in hard_requirement_results.items()
+        if status != HARD_REQUIREMENT_SATISFIED
+    ]
+
+    if any(
+        status == HARD_REQUIREMENT_BLOCKING_GAP
+        for status in hard_requirement_results.values()
+    ):
+        return "Skip"
+
+    if unresolved_hard_requirements:
         return "Review"
 
     if total_score >= 75 and len(missing_required_skills) <= 2:
@@ -913,7 +1093,7 @@ def get_recommendation(
 
 def build_gaps(
     missing_required_skills: list[str],
-    hard_requirements: list[str],
+    hard_requirement_results: dict[str, str],
     job_seniority: str,
     candidate_seniority: str,
 ) -> list[str]:
@@ -922,8 +1102,14 @@ def build_gaps(
     for skill in missing_required_skills:
         gaps.append(f"Missing required skill: {skill}")
 
-    for requirement in hard_requirements:
-        gaps.append(f"Hard requirement needs review: {requirement}")
+    for requirement, status in hard_requirement_results.items():
+        if status == HARD_REQUIREMENT_SATISFIED:
+            continue
+
+        if status == HARD_REQUIREMENT_BLOCKING_GAP:
+            gaps.append(f"Blocking hard requirement may be missing: {requirement}")
+        else:
+            gaps.append(f"Hard requirement needs review: {requirement}")
 
     if job_seniority and candidate_seniority:
         if normalize_text(job_seniority) not in normalize_text(candidate_seniority):
@@ -1111,3 +1297,97 @@ def build_candidate_domain_evidence(candidate_profile: CandidateProfile) -> list
 def tokenize(value: str | None) -> set[str]:
     normalized = normalize_text(value)
     return {token for token in normalized.split() if token}
+
+
+def build_candidate_hard_requirement_evidence(
+    candidate_profile: CandidateProfile,
+) -> list[str]:
+    evidence: list[str] = []
+
+    evidence.extend(candidate_profile.core_skills or [])
+    evidence.extend(candidate_profile.secondary_skills or [])
+    evidence.extend(candidate_profile.target_roles or [])
+    evidence.extend(candidate_profile.domains or [])
+    evidence.extend(candidate_profile.location_preferences or [])
+    evidence.extend(candidate_profile.work_arrangement_preferences or [])
+
+    if candidate_profile.seniority:
+        evidence.append(candidate_profile.seniority)
+
+    for experience in candidate_profile.experience_summary or []:
+        if isinstance(experience, dict):
+            company = experience.get("company")
+            role = experience.get("role")
+            summary = experience.get("summary")
+
+            if company:
+                evidence.append(str(company))
+
+            if role:
+                evidence.append(str(role))
+
+            if summary:
+                evidence.append(str(summary))
+
+    return evidence
+
+
+def interpret_hard_requirement(
+    hard_requirement: str,
+    candidate_evidence: list[str],
+) -> str:
+    normalized_requirement = normalize_text(hard_requirement)
+    normalized_candidate_evidence = normalize_list(candidate_evidence)
+
+    if not normalized_requirement:
+        return HARD_REQUIREMENT_NEEDS_REVIEW
+
+    # True blocker-style requirements should remain review items
+    # unless explicitly present in candidate evidence.
+    if contains_any_keyword(normalized_requirement, BLOCKING_REQUIREMENT_KEYWORDS):
+        if candidate_has_concept(
+            normalized_candidate_terms=normalized_candidate_evidence,
+            candidate_keywords=BLOCKING_REQUIREMENT_KEYWORDS,
+        ):
+            return HARD_REQUIREMENT_SATISFIED
+
+        return HARD_REQUIREMENT_NEEDS_REVIEW
+
+    # Direct evidence match
+    for evidence in normalized_candidate_evidence:
+        if (
+            normalized_requirement == evidence
+            or normalized_requirement in evidence
+            or evidence in normalized_requirement
+        ):
+            return HARD_REQUIREMENT_SATISFIED
+
+    # Concept-level evidence match
+    for concept in HARD_REQUIREMENT_CONCEPTS.values():
+        requirement_has_concept = contains_any_keyword(
+            normalized_requirement,
+            concept["requirement_keywords"],
+        )
+
+        candidate_has_matching_concept = candidate_has_concept(
+            normalized_candidate_terms=normalized_candidate_evidence,
+            candidate_keywords=concept["candidate_keywords"],
+        )
+
+        if requirement_has_concept and candidate_has_matching_concept:
+            return HARD_REQUIREMENT_SATISFIED
+
+    return HARD_REQUIREMENT_NEEDS_REVIEW
+
+
+def interpret_hard_requirements(
+    hard_requirements: list[str],
+    candidate_evidence: list[str],
+) -> dict[str, str]:
+    return {
+        requirement: interpret_hard_requirement(
+            hard_requirement=requirement,
+            candidate_evidence=candidate_evidence,
+        )
+        for requirement in hard_requirements
+    }

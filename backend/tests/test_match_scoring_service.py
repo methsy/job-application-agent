@@ -6,10 +6,14 @@ from app.schemas.job_requirements import JobRequirementRead
 from app.models.candidate_profile import CandidateProfile
 from app.models.job_requirement import JobRequirement
 from app.services.match_scoring_service import (
+    HARD_REQUIREMENT_NEEDS_REVIEW,
+    HARD_REQUIREMENT_SATISFIED,
+    calculate_constraints_score,
     calculate_match_score,
-    skill_matches,
-    match_responsibilities,
     calculate_domain_score,
+    interpret_hard_requirement,
+    match_responsibilities,
+    skill_matches,
 )
 
 
@@ -378,3 +382,64 @@ def test_calculate_domain_score_returns_low_score_for_unrelated_domain():
     )
 
     assert score == 4
+
+
+def test_interpret_hard_requirement_satisfies_software_engineering_experience():
+    result = interpret_hard_requirement(
+        hard_requirement="mandatory 3-5 years hands-on experience in software engineering",
+        candidate_evidence=[
+            "Software Engineer",
+            "Full Stack Engineering",
+            "Developed and supported application software for production systems",
+            "Python",
+            "Java",
+        ],
+    )
+
+    assert result == HARD_REQUIREMENT_SATISFIED
+
+
+def test_interpret_hard_requirement_satisfies_cloud_experience():
+    result = interpret_hard_requirement(
+        hard_requirement="must have cloud experience",
+        candidate_evidence=[
+            "AWS",
+            "GCP",
+            "CI/CD pipelines",
+        ],
+    )
+
+    assert result == HARD_REQUIREMENT_SATISFIED
+
+
+def test_interpret_hard_requirement_keeps_citizenship_as_review_without_explicit_evidence():
+    result = interpret_hard_requirement(
+        hard_requirement="must be an Australian citizen",
+        candidate_evidence=[
+            "Software Engineer",
+            "Python",
+            "AWS",
+        ],
+    )
+
+    assert result == HARD_REQUIREMENT_NEEDS_REVIEW
+
+
+def test_calculate_constraints_score_full_when_all_hard_requirements_satisfied():
+    score = calculate_constraints_score(
+        hard_requirement_results={
+            "mandatory 3-5 years hands-on experience in software engineering": HARD_REQUIREMENT_SATISFIED,
+        }
+    )
+
+    assert score == 5
+
+
+def test_calculate_constraints_score_partial_when_hard_requirements_need_review():
+    score = calculate_constraints_score(
+        hard_requirement_results={
+            "must be an Australian citizen": HARD_REQUIREMENT_NEEDS_REVIEW,
+        }
+    )
+
+    assert score == 2
