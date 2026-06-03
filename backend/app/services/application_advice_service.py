@@ -5,6 +5,38 @@ from app.models.job_requirement import JobRequirement
 from app.models.match_score import MatchScore
 from app.schemas.application_advice import ApplicationAdviceRead
 
+KEYWORD_DISPLAY_OVERRIDES = {
+    "python": "Python",
+    "java": "Java",
+    "javascript": "JavaScript",
+    "typescript": "TypeScript",
+    "fastapi": "FastAPI",
+    "sql": "SQL",
+    "postgresql": "PostgreSQL",
+    "aws": "AWS",
+    "api": "API",
+    "apis": "APIs",
+    "rest api": "REST API",
+    "rest apis": "REST APIs",
+    "ci/cd": "CI/CD",
+    "cicd": "CI/CD",
+    "ml": "ML",
+    "ai": "AI",
+    "ml/ai": "ML/AI",
+    "ml/ai frameworks": "ML/AI frameworks",
+    "ml/ai solutions": "ML/AI solutions",
+    "scalable system design": "Scalable system design",
+    "software engineering": "Software engineering",
+    "software engineer": "Software Engineer",
+    "python developer": "Python developer",
+    "automation": "Automation",
+    "testing": "Testing",
+    "cloud": "Cloud",
+    "cloud systems": "Cloud systems",
+    "data engineering": "Data engineering",
+    "data integration": "Data integration",
+}
+
 
 def generate_application_advice(
     match_score: MatchScore,
@@ -23,14 +55,20 @@ def generate_application_advice(
         job_requirement=job_requirement,
     )
 
-    risk_notes = build_risk_notes(
-        match_score=match_score,
-        job_requirement=job_requirement,
+    keywords_to_add = _clean_keyword_list(keywords_to_add)
+
+    risk_notes = _build_risk_notes(
+        missing_required_skills=match_score.missing_required_skills or [],
+        gaps=match_score.gaps or [],
+        keywords_to_add=keywords_to_add,
+        recommendation=match_score.recommendation or decision,
     )
 
-    cover_letter_angle = build_cover_letter_angle(
+    cover_letter_angle = _build_cover_letter_angle(
         best_cv_angle=best_cv_angle,
-        job_requirement=job_requirement,
+        matched_skills=match_score.matched_skills or [],
+        matched_responsibilities=match_score.matched_responsibilities or [],
+        keywords_to_add=keywords_to_add,
     )
 
     next_action = build_next_action(
@@ -225,3 +263,179 @@ def get_application_advice_by_match_score_id(
         candidate_profile=candidate_profile,
         job_requirement=job_requirement,
     )
+
+
+def _format_keyword_display(keyword: str) -> str:
+    """
+    Convert internal keyword strings into clean user-facing display text.
+
+    Examples:
+    - "python" -> "Python"
+    - "ci/cd" -> "CI/CD"
+    - "ml/aI frameworks" -> "ML/AI frameworks"
+    """
+    if not keyword:
+        return keyword
+
+    normalized = " ".join(keyword.strip().split())
+    lookup_key = normalized.lower()
+
+    if lookup_key in KEYWORD_DISPLAY_OVERRIDES:
+        return KEYWORD_DISPLAY_OVERRIDES[lookup_key]
+
+    # Handle common mixed-case AI/ML variants inside longer phrases.
+    formatted = normalized
+    formatted = formatted.replace("ml/aI", "ML/AI")
+    formatted = formatted.replace("ML/aI", "ML/AI")
+    formatted = formatted.replace("ml/ai", "ML/AI")
+    formatted = formatted.replace("ai/ml", "AI/ML")
+    formatted = formatted.replace("ci/cd", "CI/CD")
+    formatted = formatted.replace("api", "API")
+
+    # If no specific rule matched, make the first character uppercase.
+    return formatted[:1].upper() + formatted[1:]
+
+
+def _clean_keyword_list(keywords: list[str]) -> list[str]:
+    """
+    Format and deduplicate keyword suggestions while preserving order.
+    """
+    cleaned: list[str] = []
+    seen: set[str] = set()
+
+    for keyword in keywords:
+        display_keyword = _format_keyword_display(keyword)
+        dedupe_key = display_keyword.lower()
+
+        if display_keyword and dedupe_key not in seen:
+            cleaned.append(display_keyword)
+            seen.add(dedupe_key)
+
+    return cleaned
+
+
+def _build_cover_letter_angle(
+    best_cv_angle: str,
+    matched_skills: list[str],
+    matched_responsibilities: list[str],
+    keywords_to_add: list[str],
+) -> str:
+    """
+    Build a more natural cover letter positioning statement.
+    Keep this deterministic and based only on available scoring/advice evidence.
+    """
+
+    evidence_terms = _clean_keyword_list(
+        matched_skills + matched_responsibilities + keywords_to_add
+    )
+
+    priority_terms = _select_cover_letter_focus_terms(evidence_terms)
+
+    if priority_terms:
+        focus_text = ", ".join(priority_terms[:-1])
+
+        if len(priority_terms) > 1:
+            focus_text = f"{focus_text}, and {priority_terms[-1]}"
+        else:
+            focus_text = priority_terms[0]
+
+        return (
+            f"Position the application around {best_cv_angle.replace(' CV', '').lower()}, "
+            f"with emphasis on {focus_text}."
+        )
+
+    return (
+        f"Position the application around {best_cv_angle.replace(' CV', '').lower()}, "
+        "with emphasis on the strongest matching technical skills, delivery experience, "
+        "and role-relevant achievements."
+    )
+
+
+def _select_cover_letter_focus_terms(evidence_terms: list[str]) -> list[str]:
+    """
+    Select a small number of strong, user-facing focus terms for cover letter guidance.
+    """
+
+    focus_rules = [
+        ("Python", ["python"]),
+        ("backend/API software engineering", ["backend", "api", "apis", "software engineering"]),
+        ("cloud/API integration", ["cloud", "api integration", "apis", "api"]),
+        ("data-intensive systems", ["data engineering", "data integration", "data"]),
+        ("testing", ["testing", "quality"]),
+        ("CI/CD", ["ci/cd", "cicd"]),
+        ("automation", ["automation"]),
+        ("prototype-to-production delivery", ["production", "delivery"]),
+        ("scalable system design", ["scalable system design", "architecture", "design"]),
+        ("ML/AI frameworks", ["ml/ai", "ai", "ml"]),
+    ]
+
+    normalized_terms = [term.lower() for term in evidence_terms]
+
+    selected: list[str] = []
+
+    for display_text, triggers in focus_rules:
+        if any(
+            trigger in term
+            for trigger in triggers
+            for term in normalized_terms
+        ):
+            if display_text not in selected:
+                selected.append(display_text)
+
+    return selected[:6]
+
+
+def _build_risk_notes(
+    missing_required_skills: list[str],
+    gaps: list[str],
+    keywords_to_add: list[str],
+    recommendation: str,
+) -> list[str]:
+    """
+    Build specific, practical risk notes instead of generic advice.
+    """
+
+    notes: list[str] = []
+
+    normalized_gaps = [gap.lower() for gap in gaps or []]
+    normalized_keywords = [keyword.lower() for keyword in keywords_to_add or []]
+    normalized_missing = [skill.lower() for skill in missing_required_skills or []]
+
+    if any("ml" in item or "ai" in item for item in normalized_keywords + normalized_gaps + normalized_missing):
+        notes.append("Clarify depth of hands-on ML/AI framework experience.")
+
+    if any("ci/cd" in item or "testing" in item or "automation" in item for item in normalized_keywords + normalized_gaps):
+        notes.append("Emphasise CI/CD, testing, automation, and quality engineering examples.")
+
+    if any("production" in item or "prototype" in item for item in normalized_keywords + normalized_gaps):
+        notes.append("Show evidence of moving software from prototype to production.")
+
+    if any("cloud" in item for item in normalized_keywords + normalized_gaps + normalized_missing):
+        notes.append("Clarify practical cloud experience and any AWS-relevant project evidence.")
+
+    if any("scalable" in item or "architecture" in item or "design" in item for item in normalized_keywords + normalized_gaps):
+        notes.append("Use concrete examples of scalable system design or architecture decisions.")
+
+    if missing_required_skills:
+        missing_display = ", ".join(_clean_keyword_list(missing_required_skills))
+        notes.append(f"Review whether the CV can truthfully address these missing or weak areas: {missing_display}.")
+
+    if recommendation.lower() == "review":
+        notes.append("Before applying, confirm that all hard requirements are genuinely satisfied.")
+
+    notes.append("Mention nice-to-have requirements only where truthful.")
+
+    return _dedupe_notes(notes)
+
+
+def _dedupe_notes(notes: list[str]) -> list[str]:
+    cleaned: list[str] = []
+    seen: set[str] = set()
+
+    for note in notes:
+        key = note.lower().strip()
+        if key and key not in seen:
+            cleaned.append(note)
+            seen.add(key)
+
+    return cleaned
